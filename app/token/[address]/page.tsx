@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getTokenByAddress } from '@/hooks/useTokenStore';
+import Link from 'next/link';
+import { fetchTokenByMint } from '@/hooks/usePortfolio';
 import { CreatedToken } from '@/lib/types';
 import { explorerUrl, dexScreenerUrl } from '@/lib/constants';
 
@@ -9,7 +10,13 @@ export default function TokenLaunchPage({ params }: { params: { address: string 
   const [token, setToken] = useState<CreatedToken | null | undefined>(undefined);
 
   useEffect(() => {
-    setToken(getTokenByAddress(params.address));
+    let cancelled = false;
+    fetchTokenByMint(params.address).then((t) => {
+      if (!cancelled) setToken(t);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [params.address]);
 
   if (token === undefined) {
@@ -19,8 +26,9 @@ export default function TokenLaunchPage({ params }: { params: { address: string 
   if (!token) {
     return (
       <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-gray-500">
-        No local record found for this token. It may have been created from a
-        different browser — you can still view it on Solscan directly.
+        No portfolio record found for this token address — it may not have
+        been created through STMC, or the save step may have failed. You can
+        still view it on Solscan directly.
         <div className="mt-4">
           <a
             href={explorerUrl(params.address)}
@@ -61,9 +69,12 @@ export default function TokenLaunchPage({ params }: { params: { address: string 
       <div className="grid grid-cols-2 gap-4 rounded-xl border border-border bg-card p-6 text-sm sm:grid-cols-3">
         <div>
           <div className="text-xs text-gray-500">Creator</div>
-          <div className="font-mono text-xs text-gray-300">
+          <Link
+            href={`/portfolio/${token.creatorWallet}`}
+            className="font-mono text-xs text-accentBlue hover:underline"
+          >
             {token.creatorWallet.slice(0, 6)}...{token.creatorWallet.slice(-6)}
-          </div>
+          </Link>
         </div>
         <div>
           <div className="text-xs text-gray-500">Supply</div>

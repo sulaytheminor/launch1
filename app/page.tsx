@@ -1,5 +1,6 @@
 import TokenCreatorForm from '@/components/TokenCreatorForm';
 import TrustSection from '@/components/TrustSection';
+import ConnectGate from '@/components/ConnectGate';
 import { feePercentLabel } from '@/lib/fee';
 
 export default function HomePage() {
@@ -17,7 +18,9 @@ export default function HomePage() {
         </p>
       </div>
 
-      <TokenCreatorForm />
+      <ConnectGate>
+        <TokenCreatorForm />
+      </ConnectGate>
       <TrustSection />
     </div>
   );

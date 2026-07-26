@@ -2,11 +2,11 @@
 // hardcodes a secret, address, or cluster name.
 
 export const SOLANA_RPC_URL =
-  process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
+  process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 
 export const SOLANA_NETWORK =
   (process.env.NEXT_PUBLIC_SOLANA_NETWORK as 'mainnet-beta' | 'devnet') ||
-  'devnet';
+  'mainnet-beta';
 
 // Public key of the wallet that collects the platform fee. This is a
 // public address, not a secret — safe to expose via NEXT_PUBLIC_.

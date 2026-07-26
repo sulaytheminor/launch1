@@ -2,9 +2,10 @@
 
 import { useState, FormEvent } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
+import bs58 from 'bs58';
 import { TokenFormData, MemeConcept, CreatedToken } from '@/lib/types';
 import { createSplToken } from '@/lib/createToken';
-import { useTokenStore } from '@/hooks/useTokenStore';
+import { buildOwnershipMessage } from '@/lib/verifySignature';
 import DevBuyPanel from './DevBuyPanel';
 import SuccessCard from './SuccessCard';
 
@@ -37,7 +38,6 @@ function buildMetadataDataUri(form: TokenFormData): string {
 export default function TokenCreatorForm() {
   const { connection } = useConnection();
   const wallet = useWallet();
-  const { addToken } = useTokenStore();
 
   const [form, setForm] = useState<TokenFormData>(EMPTY_FORM);
   const [devBuySol, setDevBuySol] = useState(0);
@@ -109,6 +109,7 @@ export default function TokenCreatorForm() {
         revokeFreezeAuthority: revokeFreeze,
       });
 
+      const creatorWallet = wallet.publicKey.toBase58();
       const record: CreatedToken = {
         mintAddress: created.mintAddress,
         txSignature: created.txSignature,
@@ -118,12 +119,58 @@ export default function TokenCreatorForm() {
         supply: form.supply,
         decimals: form.decimals,
         logoDataUrl: form.logoDataUrl,
-        creatorWallet: wallet.publicKey.toBase58(),
+        creatorWallet,
         createdAt: new Date().toISOString(),
         devBuySol: created.devBuySol,
         feeSol: created.feeSol,
       };
-      addToken(record);
+
+      // Prove wallet ownership before this creation is saved to the
+      // portfolio database — the server never trusts a bare wallet
+      // address supplied by the frontend (see lib/verifySignature.ts).
+      try {
+        if (!wallet.signMessage) {
+          throw new Error(
+            'Your wallet does not support message signing, so this token could not be saved to your portfolio (it is still live on-chain).'
+          );
+        }
+        const message = buildOwnershipMessage({
+          walletAddress: creatorWallet,
+          tokenAddress: created.mintAddress,
+          transactionSignature: created.txSignature,
+        });
+        const signatureBytes = await wallet.signMessage(new TextEncoder().encode(message));
+        const signature = bs58.encode(signatureBytes);
+
+        const saveRes = await fetch('/api/tokens', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            walletAddress: creatorWallet,
+            tokenAddress: created.mintAddress,
+            name: form.name,
+            symbol: form.symbol,
+            description: form.description,
+            logo: form.logoDataUrl,
+            supply: form.supply,
+            decimals: form.decimals,
+            transactionSignature: created.txSignature,
+            signature,
+          }),
+        });
+        if (!saveRes.ok) {
+          const body = await saveRes.json().catch(() => ({}));
+          throw new Error(body.error || 'Could not save this token to your portfolio.');
+        }
+      } catch (saveErr: any) {
+        // The token itself already exists on-chain regardless of this —
+        // surface the portfolio-save issue without blocking the success view.
+        setError(
+          saveErr?.message ||
+            'Token created on-chain, but saving it to your portfolio failed. You can still find it on Solscan.'
+        );
+      }
+
       setResult(record);
     } catch (err: any) {
       setError(err?.message || 'Token creation failed. Please try again.');
