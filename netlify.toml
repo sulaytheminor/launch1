@@ -1,0 +1,9 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Netlify injects these automatically when the plugin above is installed.
+# Do not remove — required for Next.js App Router (SSR/API routes) on Netlify.
