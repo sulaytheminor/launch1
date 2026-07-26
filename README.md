@@ -4,14 +4,38 @@ A minimal, dark-mode-first React foundation for the STMC Helper toolset.
 
 ## What's here
 
-- Landing screen with a "connect solana wallet" placeholder button (no real
-  wallet integration yet — just UI state).
+- Landing screen with a real "connect solana wallet" button — connects to
+  an actual installed wallet (Phantom, Solflare) via
+  `@solana/wallet-adapter-react`. If more than one wallet is installed, a
+  small picker appears; if none are installed, it opens Phantom's install
+  page instead of pretending to connect.
 - Post-connection layout with a collapsible sidebar (Home, Settings) and
-  persistent "STMC helper" branding in the top-left.
-- Settings page with a wallet disconnect action, a Black/White theme
-  switcher, and a contact bar.
+  persistent "STMC helper" branding in the top-left. The app only shows this
+  layout once a wallet is actually connected (`wallet.connected` from the
+  adapter — no local placeholder flag).
+- Settings page showing the connected address (shortened, e.g. `7xKX...9P2a`)
+  with a copy button, and a "Disconnect wallet" button that calls the real
+  adapter `disconnect()`.
+- A Black/White theme switcher and a contact bar.
 - A full theme system driven by CSS variables (`src/index.css`), so future
   pages/tools automatically pick up whichever theme is active.
+
+## Wallet foundation
+
+- `src/wallet/WalletContextProvider.jsx` — sets up the Solana `Connection`
+  and the list of supported wallet adapters (Phantom, Solflare). Add more
+  adapters here later.
+- `src/wallet/useAppWallet.js` — the one hook every component uses for
+  wallet state (`address`, `connected`, `connecting`, `disconnect`, `connect`)
+  and handles the "select wallet, then connect" sequencing. It also passes
+  through `signTransaction`, `signAllTransactions`, and `sendTransaction`
+  from the adapter — unused today, but ready for a future feature (e.g. "sign
+  this transaction") to call directly without touching this file.
+- No transactions or payments are implemented yet — this is only the
+  connection layer.
+- Cluster defaults to `mainnet-beta` in `WalletContextProvider.jsx`; switch
+  the `NETWORK` constant to `devnet` while building/testing new features
+  that touch the chain.
 
 ## Local development
 
@@ -19,6 +43,11 @@ A minimal, dark-mode-first React foundation for the STMC Helper toolset.
 npm install
 npm run dev
 ```
+
+`npm install` will pull in `@solana/web3.js` and the wallet-adapter packages
+— you'll need network access for that (this repo can't vendor them). To
+actually test a connection you'll need the Phantom or Solflare browser
+extension installed.
 
 ## Build
 

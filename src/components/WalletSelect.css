@@ -1,0 +1,61 @@
+.wallet-select-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  padding: 1.5rem;
+}
+
+.wallet-select-panel {
+  background-color: var(--surface);
+  color: var(--surface-fg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.75rem;
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.wallet-select-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.wallet-select-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.wallet-select-item {
+  background-color: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg);
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  text-align: left;
+}
+
+.wallet-select-item:hover {
+  background-color: var(--hover);
+}
+
+.wallet-select-cancel {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 0.85rem;
+  align-self: flex-start;
+  padding: 0.25rem 0;
+}
+
+.wallet-select-cancel:hover {
+  color: var(--fg);
+}

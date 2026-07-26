@@ -90,3 +90,34 @@
   color: var(--accent-fg);
   border-color: var(--accent-bg);
 }
+
+.wallet-address-group {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.wallet-address {
+  font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+  font-size: 0.9rem;
+  color: var(--fg);
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+}
+
+.copy-button {
+  background-color: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg);
+  padding: 0.4rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  min-width: 62px;
+}
+
+.copy-button:hover {
+  background-color: var(--hover);
+}
