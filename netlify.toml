@@ -2,6 +2,16 @@
   command = "npm run build"
   publish = "dist"
 
+# This is a Vite + React project, not Next.js. If @netlify/plugin-nextjs
+# is enabled on the Netlify site (via the dashboard's "Build plugins"
+# section rather than this file), this flag tells it to skip itself
+# instead of trying to find a .next directory. It has no effect if the
+# plugin isn't installed at all.
+[build.environment]
+  NETLIFY_NEXT_PLUGIN_SKIP = "true"
+
+# No [[plugins]] blocks — do not add @netlify/plugin-nextjs here.
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
