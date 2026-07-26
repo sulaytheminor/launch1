@@ -1,0 +1,44 @@
+.landing {
+  height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2.5rem;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.landing-title {
+  font-size: clamp(2.75rem, 9vw, 6.5rem);
+  font-weight: 700;
+  color: var(--fg);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.connect-button {
+  background-color: var(--accent-bg);
+  color: var(--accent-fg);
+  border: none;
+  border-radius: 6px;
+  padding: 1rem 2.25rem;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.connect-button:hover {
+  opacity: 0.85;
+}
+
+.connect-button:active {
+  transform: scale(0.97);
+}
+
+.connect-button:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 3px;
+}

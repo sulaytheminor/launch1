@@ -1,0 +1,92 @@
+.settings {
+  display: flex;
+  flex-direction: column;
+}
+
+.contact-bar {
+  width: 100%;
+  background-color: #ffffff;
+  color: #000000;
+  padding: 1.25rem 3rem;
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  flex-wrap: wrap;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+.contact-bar-title {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.contact-bar-email {
+  font-size: 0.95rem;
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.settings-body {
+  padding: 2.5rem 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+  max-width: 560px;
+}
+
+.settings-section-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 0.9rem;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-row:last-child {
+  border-bottom: none;
+}
+
+.settings-label {
+  font-size: 0.95rem;
+  color: var(--fg);
+}
+
+.settings-button {
+  background-color: var(--accent-bg);
+  color: var(--accent-fg);
+  border: none;
+  border-radius: 6px;
+  padding: 0.65rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.settings-button:hover {
+  opacity: 0.85;
+}
+
+.theme-options {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.theme-pill {
+  border: 1px solid var(--border);
+  background-color: transparent;
+  color: var(--fg);
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+}
+
+.theme-pill.selected {
+  background-color: var(--accent-bg);
+  color: var(--accent-fg);
+  border-color: var(--accent-bg);
+}
