@@ -4,15 +4,14 @@ A minimal, dark-mode-first React foundation for the STMC Helper toolset.
 
 ## What's here
 
-- Landing screen with a real "connect solana wallet" button — clicking it
-  always opens a wallet picker listing **Phantom** and **Solflare** as the
-  primary options (shown with their official bundled icons, always present
-  even if not yet installed — clicking a not-installed one opens its install
-  page). Any other genuinely Solana-compatible wallet detected via the
-  Wallet Standard (e.g. Backpack, Glow) shows up under "Other detected
-  wallets". MetaMask is explicitly excluded — this is a Solana-only app, and
-  some setups register MetaMask as a generic wallet entry even though it
-  isn't a native Solana wallet.
+- Landing screen with a real "connect solana wallet" button, using the
+  original connection flow: no wallet detected → opens Phantom's install
+  page; exactly one wallet detected → connects to it directly; more than
+  one detected → opens a picker. The picker always lists **Phantom** and
+  **Solflare** (with their official bundled icons, shown even if not
+  installed yet — clicking a not-installed one opens its install page).
+  Any other wallet the browser actually detects — MetaMask included, if
+  present — shows up under "Other detected wallets"; nothing is blocked.
 - Post-connection layout with a collapsible sidebar (Home, Settings) and
   persistent "STMC helper" branding in the top-left. The app only shows this
   layout once a wallet is actually connected (`wallet.connected` from the
@@ -34,9 +33,9 @@ A minimal, dark-mode-first React foundation for the STMC Helper toolset.
   Standard (e.g. MetaMask's Solana snap), and we don't want those showing
   up unannounced in the picker.
 - `src/wallet/walletList.js` — defines which wallets are always shown as
-  primary (`Phantom`, `Solflare`) and which are blocked from ever appearing
-  (`MetaMask`). Add a wallet's name here to promote it to a primary option,
-  or block another one, without touching any component.
+  primary (`Phantom`, `Solflare`), and groups everything else the browser
+  detects (MetaMask included) under "other". Add a name here to promote a
+  wallet to primary, without touching any component.
 - `src/wallet/useAppWallet.js` — the one hook every component uses for
   wallet state (`address`, `connected`, `connecting`, `disconnect`, `connect`,
   `supportedWallets`) and handles the "select wallet, then connect"

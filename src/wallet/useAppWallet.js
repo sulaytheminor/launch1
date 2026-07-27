@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { SUPPORTED_WALLET_NAMES } from "./WalletContextProvider.jsx";
+import { WalletReadyState } from "@solana/wallet-adapter-base";
 
 /**
  * Single entry point for wallet state and actions.
@@ -68,20 +68,20 @@ export default function useAppWallet() {
     [select, connect, wallet]
   );
 
-  // wallet-adapter-react auto-merges in any browser extension that
-  // implements the Wallet Standard (e.g. MetaMask's Solana snap), which
-  // would otherwise show up in the picker even though we never added it.
-  // Only ever show the wallets STMC Helper explicitly supports, in a fixed
-  // order, regardless of what else is installed.
-  const supportedWallets = SUPPORTED_WALLET_NAMES.map((name) =>
-    wallets.find((w) => w.adapter.name === name)
-  ).filter(Boolean);
+  // Wallets the browser currently reports as installed (via the explicit
+  // Phantom/Solflare adapters or anything else auto-detected through the
+  // Wallet Standard, e.g. MetaMask). Used to decide whether "connect solana
+  // wallet" can connect straight away (exactly one installed) or needs the
+  // picker (more than one) — nothing is filtered out by name here.
+  const installedWallets = wallets.filter(
+    (w) => w.readyState === WalletReadyState.Installed
+  );
 
   return {
     connection,
     wallet,
     wallets,
-    supportedWallets,
+    installedWallets,
     publicKey,
     address: publicKey ? publicKey.toBase58() : null,
     connected,

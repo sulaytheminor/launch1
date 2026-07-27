@@ -1,23 +1,21 @@
 import { WalletReadyState } from "@solana/wallet-adapter-base";
 
-// These are the wallets STMC Helper actively supports and always lists as
-// primary options, regardless of whether the extension happens to be
-// installed in the current browser — the user should always see Phantom
-// and Solflare as choices, with an "Install" affordance if it's missing.
+// Wallets STMC Helper always lists as primary options, regardless of
+// whether the extension happens to be installed in the current browser —
+// the user should always see Phantom and Solflare as choices, with an
+// "Install" affordance if one is missing. These are the two wallets we
+// import an adapter class for in WalletContextProvider.jsx, which is what
+// makes it possible to list them even when not installed.
 export const PRIMARY_WALLET_NAMES = ["Phantom", "Solflare"];
 
-// This is a Solana-only app. Some browser setups (e.g. MetaMask's Solana
-// snap) register MetaMask as a generic Wallet Standard entry even though
-// it isn't a native Solana wallet — that's confusing here, so it's
-// excluded rather than ever shown as a primary or secondary option.
-export const EXCLUDED_WALLET_NAMES = ["MetaMask"];
-
 /**
- * Splits the combined wallet-adapter wallet list (explicit adapters +
- * anything auto-detected via the Wallet Standard) into:
+ * Splits the combined wallet-adapter wallet list (the explicit Phantom /
+ * Solflare adapters + anything else auto-detected via the Wallet Standard,
+ * e.g. MetaMask, Backpack, Glow) into:
  *  - primary: Phantom & Solflare, always present
- *  - other: any additional genuinely-detected Solana wallets (e.g.
- *    Backpack, Glow), excluding the blocklist above
+ *  - other: any additional wallet the browser actually reports as
+ *    installed (MetaMask included, if the browser detects it) — nothing
+ *    is blocked from appearing here
  */
 export function buildWalletGroups(wallets) {
   const byName = new Map(wallets.map((w) => [w.adapter.name, w]));
@@ -30,7 +28,6 @@ export function buildWalletGroups(wallets) {
   const other = wallets.filter(
     (w) =>
       !primaryNames.has(w.adapter.name) &&
-      !EXCLUDED_WALLET_NAMES.includes(w.adapter.name) &&
       w.readyState === WalletReadyState.Installed
   );
 
