@@ -23,14 +23,24 @@ A minimal, dark-mode-first React foundation for the STMC Helper toolset.
 ## Wallet foundation
 
 - `src/wallet/WalletContextProvider.jsx` — sets up the Solana `Connection`
-  and the list of supported wallet adapters (Phantom, Solflare). Add more
-  adapters here later.
+  and the list of supported wallet adapters (Phantom, Solflare). Also
+  exports `SUPPORTED_WALLET_NAMES`, the fixed, ordered list of wallets STMC
+  Helper actually shows — this exists because `wallet-adapter-react` will
+  silently merge in *any* browser extension that implements the Wallet
+  Standard (e.g. MetaMask's Solana snap), and we don't want those showing
+  up unannounced in the picker.
 - `src/wallet/useAppWallet.js` — the one hook every component uses for
-  wallet state (`address`, `connected`, `connecting`, `disconnect`, `connect`)
-  and handles the "select wallet, then connect" sequencing. It also passes
-  through `signTransaction`, `signAllTransactions`, and `sendTransaction`
-  from the adapter — unused today, but ready for a future feature (e.g. "sign
-  this transaction") to call directly without touching this file.
+  wallet state (`address`, `connected`, `connecting`, `disconnect`, `connect`,
+  `supportedWallets`) and handles the "select wallet, then connect"
+  sequencing. It also passes through `signTransaction`,
+  `signAllTransactions`, and `sendTransaction` from the adapter — unused
+  today, but ready for a future feature (e.g. "sign this transaction") to
+  call directly without touching this file.
+- The "Choose a wallet" picker (`WalletSelect.jsx`) always lists Phantom and
+  Solflare with their official icons (from `adapter.icon`, bundled by the
+  wallet-adapter packages themselves). Clicking an installed wallet connects
+  it; clicking one that isn't installed opens that wallet's install page
+  instead.
 - No transactions or payments are implemented yet — this is only the
   connection layer.
 - Cluster defaults to `mainnet-beta` in `WalletContextProvider.jsx`; switch

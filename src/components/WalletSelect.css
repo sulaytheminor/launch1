@@ -37,10 +37,33 @@
   background-color: transparent;
   border: 1px solid var(--border);
   color: var(--fg);
-  padding: 0.75rem 1rem;
+  padding: 0.65rem 1rem;
   border-radius: 6px;
   font-size: 0.95rem;
   text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.wallet-select-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.wallet-select-name {
+  flex: 1;
+}
+
+.wallet-select-status {
+  font-size: 0.75rem;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.15rem 0.55rem;
 }
 
 .wallet-select-item:hover {

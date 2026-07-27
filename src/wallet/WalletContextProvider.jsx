@@ -10,6 +10,12 @@ import { clusterApiUrl } from "@solana/web3.js";
 const NETWORK = "mainnet-beta"; // swap to "devnet" while building/testing new features
 const ENDPOINT = clusterApiUrl(NETWORK);
 
+// The wallet-adapter library auto-merges in any browser extension that
+// implements the Wallet Standard (e.g. MetaMask's Solana snap), even ones
+// we didn't add below. This list is the fixed set STMC Helper actually
+// supports and displays, in display order — see useAppWallet.js.
+export const SUPPORTED_WALLET_NAMES = ["Phantom", "Solflare"];
+
 export default function WalletContextProvider({ children }) {
   // Phantom and Solflare both also implement the Wallet Standard, so they'd
   // be auto-detected either way — listing them explicitly just guarantees
