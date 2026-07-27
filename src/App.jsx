@@ -6,6 +6,7 @@ import Landing from "./components/Landing.jsx";
 import Sidebar from "./components/Sidebar.jsx";
 import Logo from "./components/Logo.jsx";
 import Home from "./components/Home.jsx";
+import TokenScanner from "./components/TokenScanner.jsx";
 import Settings from "./components/Settings.jsx";
 import "./App.css";
 
@@ -36,6 +37,7 @@ function AppShell() {
           <Logo />
         </div>
         {activePage === "home" && <Home />}
+        {activePage === "token-scanner" && <TokenScanner />}
         {activePage === "settings" && (
           <Settings onDisconnect={handleDisconnect} />
         )}

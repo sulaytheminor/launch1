@@ -1,0 +1,166 @@
+.token-scanner {
+  padding: 2.5rem 3rem;
+  max-width: 640px;
+}
+
+.token-scanner-title {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.token-scanner-subtitle {
+  color: var(--muted);
+  font-size: 0.95rem;
+  margin-bottom: 2rem;
+  max-width: 480px;
+  line-height: 1.5;
+}
+
+.token-scanner-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+}
+
+.token-scanner-label {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.token-scanner-input-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.token-scanner-input {
+  flex: 1;
+  min-width: 220px;
+  background-color: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  font-size: 0.95rem;
+  font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+}
+
+.token-scanner-input::placeholder {
+  color: var(--muted);
+}
+
+.token-scanner-input:focus {
+  outline: none;
+  border-color: var(--fg);
+}
+
+.token-scanner-button {
+  background-color: var(--accent-bg);
+  color: var(--accent-fg);
+  border: none;
+  border-radius: 6px;
+  padding: 0.75rem 1.75rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.token-scanner-button:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.token-scanner-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.token-scanner-error {
+  color: var(--fg);
+  font-size: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.6rem 0.9rem;
+  background-color: var(--surface);
+}
+
+/* ---- Result card ---- */
+.token-scanner-result {
+  background-color: var(--surface);
+  color: var(--surface-fg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.token-scanner-result-address {
+  font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+  font-size: 0.8rem;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+.token-scanner-score-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+.token-scanner-score-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.token-scanner-score-value {
+  font-size: 1.6rem;
+  font-weight: 800;
+}
+
+.token-scanner-section-heading {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+
+.token-scanner-checks {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.token-scanner-check {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.95rem;
+}
+
+.token-scanner-check-icon {
+  min-width: 1.2rem;
+}
+
+.token-scanner-check.passed .token-scanner-check-icon {
+  color: #3ecf6e;
+}
+
+.token-scanner-check.failed .token-scanner-check-icon {
+  color: #e5484d;
+}
+
+.token-scanner-summary {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--surface-fg);
+}

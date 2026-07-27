@@ -3,6 +3,7 @@ import "./Sidebar.css";
 
 const NAV_ITEMS = [
   { id: "home", label: "Home", icon: "\u2302" },
+  { id: "token-scanner", label: "Token Scanner", icon: "\u{1F50D}" },
   { id: "settings", label: "Settings", icon: "\u2699" },
 ];
 

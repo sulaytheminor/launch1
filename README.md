@@ -12,10 +12,16 @@ A minimal, dark-mode-first React foundation for the STMC Helper toolset.
   installed yet — clicking a not-installed one opens its install page).
   Any other wallet the browser actually detects — MetaMask included, if
   present — shows up under "Other detected wallets"; nothing is blocked.
-- Post-connection layout with a collapsible sidebar (Home, Settings) and
-  persistent "STMC helper" branding in the top-left. The app only shows this
-  layout once a wallet is actually connected (`wallet.connected` from the
-  adapter — no local placeholder flag).
+- Post-connection layout with a collapsible sidebar (Home, Token Scanner,
+  Settings) and persistent "STMC helper" branding in the top-left. The app
+  only shows this layout once a wallet is actually connected
+  (`wallet.connected` from the adapter — no local placeholder flag).
+- **Token Scanner** — the first STMC tool: paste a Solana token address, hit
+  Analyze, get a risk-score card back (score, a security checklist, an AI
+  summary). Currently backed entirely by placeholder data in
+  `src/data/mockTokenAnalysis.js` — no blockchain calls, no AI API, no
+  payments yet. See "Adding future tools" below for how this plugs into a
+  real analysis backend later.
 - Settings page showing the connected address (shortened, e.g. `7xKX...9P2a`)
   with a copy button, and a "Disconnect wallet" button that calls the real
   adapter `disconnect()`.
@@ -122,7 +128,12 @@ src/
 
 ## Adding future tools
 
-Add a new component under `src/components/`, add a nav entry in
-`Sidebar.jsx`'s `NAV_ITEMS`, and render it in `App.jsx` alongside `Home` and
-`Settings`. Every component automatically inherits the active theme through
-the CSS variables set on `.app-root`.
+`TokenScanner.jsx` is the reference example: a new page lives under
+`src/components/`, gets one entry in `Sidebar.jsx`'s `NAV_ITEMS`, and one
+line in `App.jsx`. Every component automatically inherits the active theme
+through the CSS variables set on `.app-root`.
+
+To make Token Scanner do real analysis instead of mock data, replace the
+body of `analyzeToken()` in `src/data/mockTokenAnalysis.js` with a real
+call (on-chain lookup, your own API, etc.) and keep the same return shape —
+`TokenScanner.jsx` doesn't need any changes.
