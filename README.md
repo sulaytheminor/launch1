@@ -4,11 +4,15 @@ A minimal, dark-mode-first React foundation for the STMC Helper toolset.
 
 ## What's here
 
-- Landing screen with a real "connect solana wallet" button — connects to
-  an actual installed wallet (Phantom, Solflare) via
-  `@solana/wallet-adapter-react`. If more than one wallet is installed, a
-  small picker appears; if none are installed, it opens Phantom's install
-  page instead of pretending to connect.
+- Landing screen with a real "connect solana wallet" button — clicking it
+  always opens a wallet picker listing **Phantom** and **Solflare** as the
+  primary options (shown with their official bundled icons, always present
+  even if not yet installed — clicking a not-installed one opens its install
+  page). Any other genuinely Solana-compatible wallet detected via the
+  Wallet Standard (e.g. Backpack, Glow) shows up under "Other detected
+  wallets". MetaMask is explicitly excluded — this is a Solana-only app, and
+  some setups register MetaMask as a generic wallet entry even though it
+  isn't a native Solana wallet.
 - Post-connection layout with a collapsible sidebar (Home, Settings) and
   persistent "STMC helper" branding in the top-left. The app only shows this
   layout once a wallet is actually connected (`wallet.connected` from the
@@ -29,6 +33,10 @@ A minimal, dark-mode-first React foundation for the STMC Helper toolset.
   silently merge in *any* browser extension that implements the Wallet
   Standard (e.g. MetaMask's Solana snap), and we don't want those showing
   up unannounced in the picker.
+- `src/wallet/walletList.js` — defines which wallets are always shown as
+  primary (`Phantom`, `Solflare`) and which are blocked from ever appearing
+  (`MetaMask`). Add a wallet's name here to promote it to a primary option,
+  or block another one, without touching any component.
 - `src/wallet/useAppWallet.js` — the one hook every component uses for
   wallet state (`address`, `connected`, `connecting`, `disconnect`, `connect`,
   `supportedWallets`) and handles the "select wallet, then connect"
