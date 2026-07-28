@@ -98,6 +98,26 @@
   gap: 1.25rem;
 }
 
+.token-scanner-result-header {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.token-scanner-result-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.token-scanner-result-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 0.15rem;
+}
+
 .token-scanner-result-address {
   font-family: "SFMono-Regular", Consolas, Menlo, monospace;
   font-size: 0.8rem;
@@ -163,4 +183,30 @@
   font-size: 0.95rem;
   line-height: 1.6;
   color: var(--surface-fg);
+}
+
+.token-scanner-market-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.9rem;
+}
+
+.token-scanner-market-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.token-scanner-market-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.token-scanner-market-note {
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.5;
 }
