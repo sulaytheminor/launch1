@@ -46,6 +46,11 @@
   font-weight: 600;
 }
 
+.scanner-terminal-warn {
+  color: #f0b90b;
+  font-weight: 600;
+}
+
 .scanner-terminal-fail {
   color: #ff6b6b;
   font-weight: 600;

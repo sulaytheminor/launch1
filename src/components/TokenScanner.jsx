@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import ScannerTerminal from "./ScannerTerminal.jsx";
 import RiskScoreBar from "./RiskScoreBar.jsx";
-import { checkConnection, getMintInfo, getLargestHolders } from "../lib/solanaRpc.js";
+import { getMintInfo, getLargestHolders } from "../lib/solanaRpc.js";
 import { getMarketData } from "../lib/jupiterMarket.js";
 import { computeRiskAnalysis } from "../lib/riskAnalysis.js";
 import { buildAiSummary } from "../lib/aiSummary.js";
@@ -21,24 +21,38 @@ export default function TokenScanner() {
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState("");
 
-  const runStep = async (text, successText, fn) => {
+  const addLine = (text, status, extra) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    setLines((prev) => [...prev, { id, text, status: "pending", successText }]);
+    setLines((prev) => [...prev, { id, text, status, ...extra }]);
+    return id;
+  };
+
+  const updateLine = (id, patch) => {
+    setLines((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+  };
+
+  // Runs one terminal step. `fn` receives an `onRetry(attempt, err)` callback
+  // it can pass down to a rate-limit-aware fetcher (see src/lib/retry.js) —
+  // when that fires, the currently-active line is marked with a "⚠ RPC limit
+  // detected" warning and a fresh "Retrying..." line takes over, so a
+  // multi-attempt fetch still reads as a clear step-by-step log instead of a
+  // single stalled spinner.
+  const runStep = async (text, successText, fn) => {
+    let currentId = addLine(text, "pending", { successText });
+
+    const handleRetry = async () => {
+      updateLine(currentId, { status: "warning", warningText: "RPC limit detected" });
+      currentId = addLine("Retrying...", "pending", { successText: "Complete" });
+    };
 
     const delay = new Promise((resolve) => setTimeout(resolve, MIN_STEP_MS));
 
     try {
-      const [value] = await Promise.all([fn(), delay]);
-      setLines((prev) =>
-        prev.map((l) => (l.id === id ? { ...l, status: "done" } : l))
-      );
+      const [value] = await Promise.all([fn(handleRetry), delay]);
+      updateLine(currentId, { status: "done" });
       return value;
     } catch (err) {
-      setLines((prev) =>
-        prev.map((l) =>
-          l.id === id ? { ...l, status: "error", errorText: err.message } : l
-        )
-      );
+      updateLine(currentId, { status: "error", errorText: err.message });
       throw err;
     }
   };
@@ -71,18 +85,22 @@ export default function TokenScanner() {
     setAnalyzing(true);
 
     try {
-      await runStep("Connecting to Solana...", "Connected", checkConnection);
-
+      // "Connecting" performs the first real RPC call (fetching the mint
+      // account) rather than a separate getHealth ping — one fewer RPC round
+      // trip per scan, and the natural place to surface a rate-limit retry
+      // if the very first call gets throttled.
       const mintInfo = await runStep(
-        "Fetching token metadata...",
-        "Complete",
-        () => getMintInfo(mint)
+        "Connecting to Solana...",
+        "Connected",
+        (onRetry) => getMintInfo(mint, { onRetry })
       );
+
+      await runStep("Fetching token metadata...", "Complete", async () => mintInfo);
 
       const largestHolders = await runStep(
         "Fetching holder distribution...",
         "Complete",
-        () => getLargestHolders(mint)
+        (onRetry) => getLargestHolders(mint, { onRetry })
       );
 
       await runStep("Checking mint authority...", "Complete", async () => mintInfo);

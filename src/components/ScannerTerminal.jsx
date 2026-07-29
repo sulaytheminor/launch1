@@ -18,6 +18,11 @@ export default function ScannerTerminal({ lines }) {
           {line.status === "pending" && (
             <span className="scanner-terminal-spinner" aria-label="Working" />
           )}
+          {line.status === "warning" && (
+            <span className="scanner-terminal-warn">
+              ⚠ {line.warningText || "Warning"}
+            </span>
+          )}
           {line.status === "done" && (
             <span className="scanner-terminal-ok">
               ✓ {line.successText || "Complete"}

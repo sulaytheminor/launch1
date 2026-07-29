@@ -145,6 +145,7 @@ instantly).
 
 ```
 src/lib/solanaRpc.js       # checkConnection, getMintInfo, getLargestHolders
+src/lib/retry.js           # generic rate-limit-aware retry wrapper (max 3 attempts)
 src/lib/jupiterMarket.js   # getMarketData (price/mcap/volume/liquidity)
 src/lib/riskAnalysis.js    # computeRiskAnalysis — score + checklist, from real fields only
 src/lib/aiSummary.js       # buildAiSummary — plain-language write-up of the real analysis
@@ -156,11 +157,37 @@ netlify/functions/jupiter-token.js # proxy to Jupiter's public Tokens V2 API
 
 **Why serverless functions for two APIs that don't need a key?** So the RPC
 endpoint (and any future API key) never lives in frontend code. By default
-`solana-rpc.js` talks to the public `https://api.mainnet-beta.solana.com`
-endpoint, which is fine for light use but rate-limited. For real traffic,
-set a `SOLANA_RPC_URL` environment variable in Netlify to a private RPC
-provider (Helius, QuickNode, Triton, etc.) — including one with an API key
-baked into the URL — and nothing on the client needs to change.
+`solana-rpc.js` talks to a small list of public endpoints (starting with
+`https://api.mainnet-beta.solana.com`), which is fine for light use but
+rate-limited. For real traffic, set a `SOLANA_RPC_URL` environment variable
+in Netlify to a private RPC provider (Helius, QuickNode, Triton, etc.) —
+including one with an API key baked into the URL — and it's tried first,
+before falling back to any public endpoints. `SOLANA_RPC_FALLBACK_URLS`
+(comma-separated) lets you add more endpoints to the fallback chain.
+
+**Handling Solana RPC rate limits ("Too many requests for a specific RPC
+call"):** two layers work together, and both are real, not simulated:
+
+1. **Per-request endpoint fallback** (server-side, in `solana-rpc.js`): for
+   a single call, each configured RPC endpoint is tried in order until one
+   responds successfully. A rate limit or network error on one endpoint
+   just moves to the next — the response only reports failure once every
+   endpoint has been tried.
+2. **Client-side retry, up to 3 attempts** (`src/lib/retry.js`, used by
+   `getMintInfo`/`getLargestHolders` in `src/lib/solanaRpc.js`): if every
+   endpoint is still rate-limited after step 1, the whole request is retried
+   with a short backoff, up to 3 total attempts. Only rate-limit errors are
+   retried — a real "mint not found" or "not an SPL token" error fails
+   immediately instead of retrying something that can never succeed.
+
+Every retry is visible in the terminal, not hidden: the affected line gets a
+`⚠ RPC limit detected` marker and a new `Retrying...` line takes over until
+it either succeeds (`✓ Complete`) or all 3 attempts are exhausted
+(`✗ Failed`, with the real error).
+
+The mint-metadata fetch also now doubles as the "Connecting to Solana..."
+step (instead of a separate `getHealth` call), cutting one RPC round trip
+out of every scan.
 
 **What happens when data can't be found:** if the mint doesn't exist, isn't
 an SPL token, or a request fails, the terminal shows `✗ Failed` on that

@@ -1,21 +1,34 @@
 // netlify/functions/solana-rpc.js
 //
-// Thin, safe proxy to a Solana JSON-RPC endpoint.
+// Thin, safe proxy to a Solana JSON-RPC endpoint, with automatic fallback
+// across multiple RPC providers when one is unreachable or rate-limiting.
 //
 // Why this exists instead of calling Solana RPC directly from the browser:
-//  - Lets the RPC endpoint be swapped for a private/paid provider (Helius,
-//    QuickNode, Triton, etc.) via the SOLANA_RPC_URL env var without ever
-//    putting that URL (which usually embeds an API key) in frontend code.
+//  - Lets the RPC endpoint(s) be swapped for a private/paid provider
+//    (Helius, QuickNode, Triton, etc.) via env vars without ever putting
+//    that URL (which usually embeds an API key) in frontend code.
 //  - Restricts callers to a small allowlist of read-only RPC methods so this
 //    function can't be abused as an open RPC relay.
-//  - Gives one place to normalize error handling for the frontend.
+//  - Gives one place to normalize error handling and rate-limit fallback
+//    for the frontend.
 //
-// No secret key is required to run this with the default public endpoint,
-// but if you configure SOLANA_RPC_URL to a provider that needs a key in the
-// URL or headers, that value only ever lives in Netlify's environment
-// variables — never in the client bundle.
+// Endpoint resolution order:
+//  1. SOLANA_RPC_URL (your primary/paid endpoint, if set)
+//  2. SOLANA_RPC_FALLBACK_URLS (comma-separated extra endpoints, if set)
+//  3. A small built-in list of public endpoints, always appended last as a
+//     final safety net.
+//
+// For a single incoming request, each endpoint is tried in order until one
+// succeeds. If every endpoint reports a rate limit, the response carries
+// `rateLimited: true` so the frontend can show a clear "RPC limit detected"
+// message and drive its own client-side retry (see src/lib/solanaRpc.js)
+// instead of a generic failure.
 
-const DEFAULT_RPC_URL = "https://api.mainnet-beta.solana.com";
+const BUILT_IN_FALLBACKS = [
+  "https://api.mainnet-beta.solana.com",
+  "https://solana-rpc.publicnode.com",
+  "https://rpc.ankr.com/solana",
+];
 
 // Only allow the read-only methods this app actually needs.
 const ALLOWED_METHODS = new Set([
@@ -25,6 +38,30 @@ const ALLOWED_METHODS = new Set([
   "getTokenLargestAccounts",
   "getMultipleAccounts",
 ]);
+
+function getRpcEndpoints() {
+  const configured = [];
+  if (process.env.SOLANA_RPC_URL) configured.push(process.env.SOLANA_RPC_URL);
+  if (process.env.SOLANA_RPC_FALLBACK_URLS) {
+    configured.push(
+      ...process.env.SOLANA_RPC_FALLBACK_URLS.split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    );
+  }
+
+  const endpoints = configured.length ? configured : [];
+  for (const fallback of BUILT_IN_FALLBACKS) {
+    if (!endpoints.includes(fallback)) endpoints.push(fallback);
+  }
+  return endpoints;
+}
+
+function isRateLimitResponse(httpStatus, json) {
+  if (httpStatus === 429) return true;
+  const message = json?.error?.message || "";
+  return /too many requests|rate limit/i.test(message);
+}
 
 export async function handler(event) {
   if (event.httpMethod !== "POST") {
@@ -47,40 +84,56 @@ export async function handler(event) {
     return respond(400, { error: "params must be an array" });
   }
 
-  const rpcUrl = process.env.SOLANA_RPC_URL || DEFAULT_RPC_URL;
+  const endpoints = getRpcEndpoints();
+  let lastError = null;
+  let sawRateLimit = false;
 
-  try {
-    const upstream = await fetch(rpcUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method,
-        params: params || [],
-      }),
-    });
-
-    const text = await upstream.text();
-    let json;
+  for (const rpcUrl of endpoints) {
     try {
-      json = JSON.parse(text);
-    } catch {
-      return respond(502, {
-        error: `Upstream RPC returned a non-JSON response (HTTP ${upstream.status})`,
+      const upstream = await fetch(rpcUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method,
+          params: params || [],
+        }),
       });
-    }
 
-    if (!upstream.ok) {
-      return respond(502, {
-        error: json?.error?.message || `Upstream RPC error (HTTP ${upstream.status})`,
-      });
-    }
+      const text = await upstream.text();
+      let json;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        lastError = `Upstream RPC returned a non-JSON response (HTTP ${upstream.status})`;
+        continue; // try next endpoint
+      }
 
-    return respond(200, json);
-  } catch (err) {
-    return respond(502, { error: `Failed to reach Solana RPC: ${err.message}` });
+      if (isRateLimitResponse(upstream.status, json)) {
+        sawRateLimit = true;
+        lastError = json?.error?.message || `Rate limited (HTTP ${upstream.status})`;
+        continue; // try next endpoint
+      }
+
+      if (!upstream.ok) {
+        lastError = json?.error?.message || `Upstream RPC error (HTTP ${upstream.status})`;
+        continue; // try next endpoint
+      }
+
+      // Success — return immediately, even if this wasn't the first endpoint.
+      return respond(200, json);
+    } catch (err) {
+      lastError = `Failed to reach ${rpcUrl}: ${err.message}`;
+      continue; // network error — try next endpoint
+    }
   }
+
+  // Every configured endpoint failed.
+  return respond(502, {
+    error: lastError || "All Solana RPC endpoints failed.",
+    rateLimited: sawRateLimit,
+  });
 }
 
 function respond(statusCode, payload) {
