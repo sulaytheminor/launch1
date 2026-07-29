@@ -165,24 +165,31 @@ including one with an API key baked into the URL — and it's tried first,
 before falling back to any public endpoints. `SOLANA_RPC_FALLBACK_URLS`
 (comma-separated) lets you add more endpoints to the fallback chain.
 
-**Handling Solana RPC rate limits ("Too many requests for a specific RPC
-call"):** two layers work together, and both are real, not simulated:
+**Handling Solana RPC rate limits and 502s ("Too many requests..." / "RPC
+proxy error (HTTP 502)"):** two layers work together, and both are real,
+not simulated:
 
 1. **Per-request endpoint fallback** (server-side, in `solana-rpc.js`): for
    a single call, each configured RPC endpoint is tried in order until one
-   responds successfully. A rate limit or network error on one endpoint
-   just moves to the next — the response only reports failure once every
-   endpoint has been tried.
+   responds successfully. A rate limit (429), a bad gateway/unavailable/
+   timeout (502/503/504), or a network error on one endpoint just moves to
+   the next — the response only reports failure once every endpoint has
+   been tried.
 2. **Client-side retry, up to 3 attempts** (`src/lib/retry.js`, used by
    `getMintInfo`/`getLargestHolders` in `src/lib/solanaRpc.js`): if every
-   endpoint is still rate-limited after step 1, the whole request is retried
-   with a short backoff, up to 3 total attempts. Only rate-limit errors are
-   retried — a real "mint not found" or "not an SPL token" error fails
-   immediately instead of retrying something that can never succeed.
+   endpoint still fails after step 1 — for *any* transient reason, not just
+   a rate limit — the whole request is retried with a short backoff, up to
+   3 total attempts. Each retry also tells the proxy to start from a
+   different endpoint (an `attempt` number rotates the starting index), so
+   3 attempts actually rotate through every configured endpoint rather than
+   retrying the same failing one. Only transient errors are retried — a
+   real "mint not found" or "not an SPL token" error fails immediately
+   instead of retrying something that can never succeed.
 
-Every retry is visible in the terminal, not hidden: the affected line gets a
-`⚠ RPC limit detected` marker and a new `Retrying...` line takes over until
-it either succeeds (`✓ Complete`) or all 3 attempts are exhausted
+Every retry is visible in the terminal, not hidden: the affected line gets
+a warning marker (`⚠ RPC limit detected` for a 429, `⚠ RPC error detected`
+for a 502/503/504/network failure) and a new `Retrying...` line takes over
+until it either succeeds (`✓ Complete`) or all 3 attempts are exhausted
 (`✗ Failed`, with the real error).
 
 The mint-metadata fetch also now doubles as the "Connecting to Solana..."

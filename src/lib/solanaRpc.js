@@ -4,48 +4,64 @@
 // straight out of a Solana JSON-RPC response, or throws — there is no
 // placeholder/fallback value baked in.
 //
-// Rate-limit handling: the serverless proxy (netlify/functions/solana-rpc.js)
+// Rate-limit / 502 handling: the serverless proxy (netlify/functions/solana-rpc.js)
 // already tries multiple RPC endpoints per request before giving up. On top
 // of that, getMintInfo/getLargestHolders retry the whole request up to 3
-// times when every endpoint reports a rate limit, via withRetry(). Errors
-// thrown from rpcCall() carry an `err.rateLimited` flag so callers (and the
-// retry helper) can tell a rate limit apart from a real "not found" error —
-// only the former is retried.
+// times whenever the proxy reports a transient failure — a rate limit
+// (429), a bad gateway/unavailable/timeout (502/503/504), or a network
+// error — via withRetry(). Errors thrown from rpcCall() carry a
+// `err.retryable` flag (and a more specific `err.rateLimited` flag for
+// UI messaging) so callers can tell a transient failure apart from a real
+// "not found" error — only the former is retried. Each retry also asks the
+// proxy to start from a different RPC endpoint (see the `attempt` param
+// below), so repeated failures actually rotate through every configured
+// endpoint instead of hammering the same one.
 
 import { withRetry } from "./retry.js";
 
 const RPC_ENDPOINT = "/.netlify/functions/solana-rpc";
 
-async function rpcCall(method, params) {
+async function rpcCall(method, params, attempt = 1) {
   let res;
   try {
     res = await fetch(RPC_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ method, params }),
+      body: JSON.stringify({ method, params, attempt }),
     });
   } catch (err) {
-    throw new Error(
+    const networkErr = new Error(
       "Could not reach the Solana RPC proxy. Check your network connection."
     );
+    // A failed fetch to our own proxy is itself transient (offline blip,
+    // DNS hiccup, etc.) — worth retrying rather than failing immediately.
+    networkErr.retryable = true;
+    throw networkErr;
   }
 
   let json;
   try {
     json = await res.json();
   } catch {
-    throw new Error("Received an invalid response from the Solana RPC proxy.");
+    const err = new Error("Received an invalid response from the Solana RPC proxy.");
+    err.retryable = true;
+    throw err;
   }
 
   if (!res.ok) {
     const err = new Error(json?.error || `RPC proxy error (HTTP ${res.status})`);
     err.rateLimited = Boolean(json?.rateLimited);
+    // Any 429/502/503/504 (or the proxy's own `retryable` flag) is worth
+    // retrying with a different endpoint — not just rate limits.
+    err.retryable =
+      Boolean(json?.retryable) || err.rateLimited || res.status === 429 || res.status >= 500;
     throw err;
   }
   if (json.error) {
     const message = json.error.message || "Solana RPC returned an error.";
     const err = new Error(message);
     err.rateLimited = /too many requests|rate limit/i.test(message);
+    err.retryable = err.rateLimited;
     throw err;
   }
 
@@ -65,8 +81,9 @@ export async function checkConnection() {
 /**
  * Fetches and parses an SPL token mint account.
  * Throws if the address doesn't exist on-chain or isn't a token mint.
- * Retries automatically (up to 3 attempts) if every RPC endpoint reports a
- * rate limit, calling `onRetry(attempt, err)` before each retry.
+ * Retries automatically (up to 3 attempts, rotating RPC endpoints) on any
+ * transient failure — rate limit, 502/503/504, or network error — calling
+ * `onRetry(attempt, err)` before each retry.
  *
  * @returns {{
  *   decimals: number,
@@ -78,11 +95,12 @@ export async function checkConnection() {
  */
 export async function getMintInfo(mintAddress, { onRetry } = {}) {
   return withRetry(
-    async () => {
-      const result = await rpcCall("getAccountInfo", [
-        mintAddress,
-        { encoding: "jsonParsed" },
-      ]);
+    async (attempt) => {
+      const result = await rpcCall(
+        "getAccountInfo",
+        [mintAddress, { encoding: "jsonParsed" }],
+        attempt
+      );
 
       if (!result || !result.value) {
         throw new Error(
@@ -114,15 +132,16 @@ export async function getMintInfo(mintAddress, { onRetry } = {}) {
  * Fetches the largest holder token accounts for a mint (on-chain, up to 20,
  * ordered descending by balance — this is exactly what Solana's
  * getTokenLargestAccounts RPC method returns). Retries automatically (up to
- * 3 attempts) if every RPC endpoint reports a rate limit, calling
- * `onRetry(attempt, err)` before each retry.
+ * 3 attempts, rotating RPC endpoints) on any transient failure — rate
+ * limit, 502/503/504, or network error — calling `onRetry(attempt, err)`
+ * before each retry.
  *
  * @returns {Array<{ address: string, amountRaw: string, decimals: number }>}
  */
 export async function getLargestHolders(mintAddress, { onRetry } = {}) {
   return withRetry(
-    async () => {
-      const result = await rpcCall("getTokenLargestAccounts", [mintAddress]);
+    async (attempt) => {
+      const result = await rpcCall("getTokenLargestAccounts", [mintAddress], attempt);
       const accounts = result?.value || [];
       return accounts.map((a) => ({
         address: a.address,

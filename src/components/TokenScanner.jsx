@@ -32,16 +32,17 @@ export default function TokenScanner() {
   };
 
   // Runs one terminal step. `fn` receives an `onRetry(attempt, err)` callback
-  // it can pass down to a rate-limit-aware fetcher (see src/lib/retry.js) —
-  // when that fires, the currently-active line is marked with a "⚠ RPC limit
-  // detected" warning and a fresh "Retrying..." line takes over, so a
-  // multi-attempt fetch still reads as a clear step-by-step log instead of a
-  // single stalled spinner.
+  // it can pass down to a retry-aware fetcher (see src/lib/retry.js) — when
+  // that fires (rate limit, 502/503/504, or a network blip), the
+  // currently-active line is marked with a warning and a fresh "Retrying..."
+  // line takes over, so a multi-attempt fetch still reads as a clear
+  // step-by-step log instead of a single stalled spinner.
   const runStep = async (text, successText, fn) => {
     let currentId = addLine(text, "pending", { successText });
 
-    const handleRetry = async () => {
-      updateLine(currentId, { status: "warning", warningText: "RPC limit detected" });
+    const handleRetry = async (attempt, err) => {
+      const warningText = err?.rateLimited ? "RPC limit detected" : "RPC error detected";
+      updateLine(currentId, { status: "warning", warningText });
       currentId = addLine("Retrying...", "pending", { successText: "Complete" });
     };
 

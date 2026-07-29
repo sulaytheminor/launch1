@@ -18,11 +18,19 @@
 //  3. A small built-in list of public endpoints, always appended last as a
 //     final safety net.
 //
-// For a single incoming request, each endpoint is tried in order until one
-// succeeds. If every endpoint reports a rate limit, the response carries
-// `rateLimited: true` so the frontend can show a clear "RPC limit detected"
-// message and drive its own client-side retry (see src/lib/solanaRpc.js)
-// instead of a generic failure.
+// For a single incoming request, every endpoint is tried in order until one
+// succeeds — a 502/503/504, a 429 (rate limit), or a network error on one
+// endpoint just moves on to the next. If ALL endpoints fail, this responds
+// 502 with `retryable: true` (see below) so the frontend's retry wrapper
+// (src/lib/retry.js) tries the whole request again — up to 3 attempts total
+// — rather than giving up on the first 502.
+//
+// Each client-side retry also sends an `attempt` number, which rotates
+// which endpoint we start from (attempt 1 starts at endpoint 0, attempt 2
+// starts at endpoint 1, etc.). Combined with the per-request loop above,
+// this means a request that fails 3 times in a row will actually have
+// tried every configured endpoint from a different starting point each
+// time, instead of always hammering the same one first.
 
 const BUILT_IN_FALLBACKS = [
   "https://api.mainnet-beta.solana.com",
@@ -57,10 +65,24 @@ function getRpcEndpoints() {
   return endpoints;
 }
 
+/** Rotates the endpoint list so a different one is tried first each attempt. */
+function rotateEndpoints(endpoints, attempt) {
+  if (endpoints.length <= 1) return endpoints;
+  const offset = ((attempt - 1) % endpoints.length + endpoints.length) % endpoints.length;
+  return [...endpoints.slice(offset), ...endpoints.slice(0, offset)];
+}
+
 function isRateLimitResponse(httpStatus, json) {
   if (httpStatus === 429) return true;
   const message = json?.error?.message || "";
   return /too many requests|rate limit/i.test(message);
+}
+
+// 5xx (bad gateway/unavailable/timeout) and 429 are all transient — worth a
+// retry with a different endpoint. A 4xx other than 429 (e.g. malformed
+// request) is not, since retrying it will just fail the same way.
+function isTransientStatus(httpStatus) {
+  return httpStatus === 429 || httpStatus >= 500;
 }
 
 export async function handler(event) {
@@ -75,7 +97,7 @@ export async function handler(event) {
     return respond(400, { error: "Invalid JSON body" });
   }
 
-  const { method, params } = body;
+  const { method, params, attempt } = body;
 
   if (typeof method !== "string" || !ALLOWED_METHODS.has(method)) {
     return respond(400, { error: `Method not permitted: ${method}` });
@@ -84,9 +106,13 @@ export async function handler(event) {
     return respond(400, { error: "params must be an array" });
   }
 
-  const endpoints = getRpcEndpoints();
+  const endpoints = rotateEndpoints(
+    getRpcEndpoints(),
+    Number.isInteger(attempt) ? attempt : 1
+  );
   let lastError = null;
   let sawRateLimit = false;
+  let sawTransient = false;
 
   for (const rpcUrl of endpoints) {
     try {
@@ -106,17 +132,20 @@ export async function handler(event) {
       try {
         json = JSON.parse(text);
       } catch {
+        sawTransient = true;
         lastError = `Upstream RPC returned a non-JSON response (HTTP ${upstream.status})`;
         continue; // try next endpoint
       }
 
       if (isRateLimitResponse(upstream.status, json)) {
         sawRateLimit = true;
+        sawTransient = true;
         lastError = json?.error?.message || `Rate limited (HTTP ${upstream.status})`;
         continue; // try next endpoint
       }
 
       if (!upstream.ok) {
+        if (isTransientStatus(upstream.status)) sawTransient = true;
         lastError = json?.error?.message || `Upstream RPC error (HTTP ${upstream.status})`;
         continue; // try next endpoint
       }
@@ -124,15 +153,21 @@ export async function handler(event) {
       // Success — return immediately, even if this wasn't the first endpoint.
       return respond(200, json);
     } catch (err) {
+      // Network-level failure reaching this endpoint — always worth trying
+      // the next one / a later client-side retry.
+      sawTransient = true;
       lastError = `Failed to reach ${rpcUrl}: ${err.message}`;
-      continue; // network error — try next endpoint
+      continue;
     }
   }
 
-  // Every configured endpoint failed.
+  // Every configured endpoint failed. `retryable` covers ANY transient
+  // failure (429s, 5xx, network errors, bad responses) — not just rate
+  // limits — so the frontend retries a plain 502 just as readily as a 429.
   return respond(502, {
     error: lastError || "All Solana RPC endpoints failed.",
     rateLimited: sawRateLimit,
+    retryable: sawTransient,
   });
 }
 
