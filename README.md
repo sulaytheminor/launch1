@@ -157,34 +157,52 @@ netlify/functions/jupiter-token.js # proxy to Jupiter's public Tokens V2 API
 
 **Why serverless functions for two APIs that don't need a key?** So the RPC
 endpoint (and any future API key) never lives in frontend code. By default
-`solana-rpc.js` talks to a small list of public endpoints (starting with
-`https://api.mainnet-beta.solana.com`), which is fine for light use but
-rate-limited. For real traffic, set a `SOLANA_RPC_URL` environment variable
-in Netlify to a private RPC provider (Helius, QuickNode, Triton, etc.) —
-including one with an API key baked into the URL — and it's tried first,
-before falling back to any public endpoints. `SOLANA_RPC_FALLBACK_URLS`
-(comma-separated) lets you add more endpoints to the fallback chain.
+`solana-rpc.js` talks to a small list of public endpoints
+(`api.mainnet-beta.solana.com`, `solana-rpc.publicnode.com`,
+`rpc.ankr.com/solana`, `solana.drpc.org`), which is fine for light use but
+rate-limited — Solana's own docs are explicit that the public endpoints are
+shared infrastructure, not meant for production traffic, and will
+429/403 under real load. For real traffic, set a `SOLANA_RPC_URL`
+environment variable in Netlify to a dedicated provider (Helius,
+QuickNode, Triton, Chainstack, etc.) — including one with an API key baked
+into the URL — and it's tried first, before falling back to the public
+endpoints. `SOLANA_RPC_FALLBACK_URLS` (comma-separated) lets you add more
+endpoints to the fallback chain.
+
+**Provider detection:** on cold start, `solana-rpc.js` logs (to Netlify's
+function logs — this is diagnostic, not shown in the UI) whether it's
+running on your configured `SOLANA_RPC_URL` or falling back entirely to
+the public tier, along with a pointer to set one up if not. This makes it
+easy to confirm from the logs whether repeated failures are coming from the
+shared public endpoints (expected under load) or a provider you've
+configured yourself.
 
 **Handling Solana RPC rate limits and 502s ("Too many requests..." / "RPC
-proxy error (HTTP 502)"):** two layers work together, and both are real,
+proxy error (HTTP 502)"):** three layers work together, and all are real,
 not simulated:
 
 1. **Per-request endpoint fallback** (server-side, in `solana-rpc.js`): for
-   a single call, each configured RPC endpoint is tried in order until one
+   a single call, each available RPC endpoint is tried in order until one
    responds successfully. A rate limit (429), a bad gateway/unavailable/
    timeout (502/503/504), or a network error on one endpoint just moves to
-   the next — the response only reports failure once every endpoint has
-   been tried.
+   the next, different endpoint — the response only reports failure once
+   every available endpoint has been tried.
 2. **Client-side retry, up to 3 attempts** (`src/lib/retry.js`, used by
    `getMintInfo`/`getLargestHolders` in `src/lib/solanaRpc.js`): if every
    endpoint still fails after step 1 — for *any* transient reason, not just
    a rate limit — the whole request is retried with a short backoff, up to
-   3 total attempts. Each retry also tells the proxy to start from a
-   different endpoint (an `attempt` number rotates the starting index), so
-   3 attempts actually rotate through every configured endpoint rather than
-   retrying the same failing one. Only transient errors are retried — a
-   real "mint not found" or "not an SPL token" error fails immediately
-   instead of retrying something that can never succeed.
+   3 total attempts.
+3. **Cross-attempt "never retry a dead host" tracking:** when an endpoint
+   fails, its hostname (never the full URL, so a key embedded in a custom
+   endpoint's path/query is never exposed) is added to an exclusion set
+   that's sent along with every later attempt. The proxy filters those
+   hosts out before it even tries them, so a host that failed on attempt 1
+   is guaranteed not to be retried on attempt 2 or 3 — only if literally
+   every configured endpoint has failed at least once does the exclusion
+   list reset, so a short retry sequence doesn't dead-end permanently.
+   Only transient errors count toward this at all — a real "mint not
+   found" or "not an SPL token" error fails immediately instead of
+   retrying (or excluding endpoints) for something that can never succeed.
 
 Every retry is visible in the terminal, not hidden: the affected line gets
 a warning marker (`⚠ RPC limit detected` for a 429, `⚠ RPC error detected`
