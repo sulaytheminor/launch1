@@ -144,75 +144,76 @@ one starts (so the log is readable even when a real response comes back
 instantly).
 
 ```
+src/lib/heliusConnection.js # single source of truth for the Helius Connection
 src/lib/solanaRpc.js       # checkConnection, getMintInfo, getLargestHolders
-src/lib/retry.js           # generic rate-limit-aware retry wrapper (max 3 attempts)
+src/lib/retry.js           # generic transient-failure retry wrapper (max 3 attempts)
 src/lib/jupiterMarket.js   # getMarketData (price/mcap/volume/liquidity)
 src/lib/riskAnalysis.js    # computeRiskAnalysis — score + checklist, from real fields only
 src/lib/aiSummary.js       # buildAiSummary — plain-language write-up of the real analysis
 src/lib/format.js          # shared number/percent/USD formatting helpers
 
-netlify/functions/solana-rpc.js    # allowlisted JSON-RPC proxy to Solana
 netlify/functions/jupiter-token.js # proxy to Jupiter's public Tokens V2 API
 ```
 
-**Why serverless functions for two APIs that don't need a key?** So the RPC
-endpoint (and any future API key) never lives in frontend code. By default
-`solana-rpc.js` talks to a small list of public endpoints
-(`api.mainnet-beta.solana.com`, `solana-rpc.publicnode.com`,
-`rpc.ankr.com/solana`, `solana.drpc.org`), which is fine for light use but
-rate-limited — Solana's own docs are explicit that the public endpoints are
-shared infrastructure, not meant for production traffic, and will
-429/403 under real load. For real traffic, set a `SOLANA_RPC_URL`
-environment variable in Netlify to a dedicated provider (Helius,
-QuickNode, Triton, Chainstack, etc.) — including one with an API key baked
-into the URL — and it's tried first, before falling back to the public
-endpoints. `SOLANA_RPC_FALLBACK_URLS` (comma-separated) lets you add more
-endpoints to the fallback chain.
+**Solana RPC provider: Helius.** All Solana blockchain requests — the
+Token Scanner's on-chain lookups *and* the wallet connection's own
+`Connection` (`src/wallet/WalletContextProvider.jsx`) — go through Helius's
+mainnet RPC, built as:
 
-**Provider detection:** on cold start, `solana-rpc.js` logs (to Netlify's
-function logs — this is diagnostic, not shown in the UI) whether it's
-running on your configured `SOLANA_RPC_URL` or falling back entirely to
-the public tier, along with a pointer to set one up if not. This makes it
-easy to confirm from the logs whether repeated failures are coming from the
-shared public endpoints (expected under load) or a provider you've
-configured yourself.
+```js
+`https://mainnet.helius-rpc.com/?api-key=${import.meta.env.VITE_HELIUS_API_KEY}`
+```
 
-**Handling Solana RPC rate limits and 502s ("Too many requests..." / "RPC
-proxy error (HTTP 502)"):** three layers work together, and all are real,
-not simulated:
+**Setting the API key:**
+- **Local dev:** copy `.env.example` to `.env` and fill in your key from
+  https://www.helius.dev, then restart `npm run dev`.
+- **Netlify:** set `VITE_HELIUS_API_KEY` in Site configuration ->
+  Environment variables. This step is required — a `.env` file is never
+  read by Netlify's build. Since Vite inlines `VITE_`-prefixed variables
+  into the bundle at *build* time, the variable has to be present when
+  Netlify runs `npm run build`, not just at request time.
 
-1. **Per-request endpoint fallback** (server-side, in `solana-rpc.js`): for
-   a single call, each available RPC endpoint is tried in order until one
-   responds successfully. A rate limit (429), a bad gateway/unavailable/
-   timeout (502/503/504), or a network error on one endpoint just moves to
-   the next, different endpoint — the response only reports failure once
-   every available endpoint has been tried.
-2. **Client-side retry, up to 3 attempts** (`src/lib/retry.js`, used by
-   `getMintInfo`/`getLargestHolders` in `src/lib/solanaRpc.js`): if every
-   endpoint still fails after step 1 — for *any* transient reason, not just
-   a rate limit — the whole request is retried with a short backoff, up to
-   3 total attempts.
-3. **Cross-attempt "never retry a dead host" tracking:** when an endpoint
-   fails, its hostname (never the full URL, so a key embedded in a custom
-   endpoint's path/query is never exposed) is added to an exclusion set
-   that's sent along with every later attempt. The proxy filters those
-   hosts out before it even tries them, so a host that failed on attempt 1
-   is guaranteed not to be retried on attempt 2 or 3 — only if literally
-   every configured endpoint has failed at least once does the exclusion
-   list reset, so a short retry sequence doesn't dead-end permanently.
-   Only transient errors count toward this at all — a real "mint not
-   found" or "not an SPL token" error fails immediately instead of
-   retrying (or excluding endpoints) for something that can never succeed.
+**The key is not hardcoded anywhere in source** — it's read once via
+`import.meta.env.VITE_HELIUS_API_KEY` in `src/lib/heliusConnection.js`, the
+only place in the app that constructs the Helius URL.
 
-Every retry is visible in the terminal, not hidden: the affected line gets
-a warning marker (`⚠ RPC limit detected` for a 429, `⚠ RPC error detected`
-for a 502/503/504/network failure) and a new `Retrying...` line takes over
-until it either succeeds (`✓ Complete`) or all 3 attempts are exhausted
-(`✗ Failed`, with the real error).
+**Client-side exposure, by design:** because this uses a `VITE_`-prefixed
+variable (per the requested connection pattern), the key is inlined into
+the deployed JS bundle and is technically readable by anyone who inspects
+it — this is inherent to build-time client env vars, not a bug in this
+setup. If you'd rather the key never reach the browser, route requests
+through a serverless function instead (the project had exactly that
+architecture for the RPC calls in an earlier iteration, using an
+`SOLANA_RPC_URL` server-side env var). Since it does ship client-side
+here, restrict the key to your site's domain(s) in the Helius dashboard so
+it can't be reused by someone else.
 
-The mint-metadata fetch also now doubles as the "Connecting to Solana..."
-step (instead of a separate `getHealth` call), cutting one RPC round trip
-out of every scan.
+**Missing key handling:** nothing in the app crashes if
+`VITE_HELIUS_API_KEY` isn't set.
+- `WalletContextProvider` (wraps the whole app) falls back to Solana's
+  public RPC endpoint for wallet connectivity, logging a console warning —
+  the app still loads and the wallet can still connect.
+- The Token Scanner's `getConnection()` throws a specific
+  `MissingHeliusKeyError` the moment it's actually used, which surfaces
+  through the existing terminal/error UI (`✗ Failed — No Helius API key
+  configured...`) exactly like any other real fetch failure — no new UI,
+  no silent fallback to fake data.
+
+**Retrying transient failures:** Helius is a single dedicated provider, so
+there's no more multi-endpoint fallback/rotation to manage — but genuine
+transient hiccups (a momentary 429/5xx, a network blip) are still retried
+up to 3 times with backoff via `src/lib/retry.js`, used by
+`getMintInfo`/`getLargestHolders` in `src/lib/solanaRpc.js`. A real "mint
+not found," "not an SPL token," or missing-key error is never retried —
+only errors classified as transient are. Every retry is visible in the
+terminal: the affected line gets a warning marker (`⚠ RPC limit detected`
+for a 429, `⚠ RPC error detected` for a 5xx/network failure) and a new
+`Retrying...` line takes over until it either succeeds (`✓ Complete`) or
+all 3 attempts are exhausted (`✗ Failed`, with the real error).
+
+The mint-metadata fetch also doubles as the "Connecting to Solana..." step
+(instead of a separate connectivity call), cutting one RPC round trip out
+of every scan.
 
 **What happens when data can't be found:** if the mint doesn't exist, isn't
 an SPL token, or a request fails, the terminal shows `✗ Failed` on that
